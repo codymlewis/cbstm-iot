@@ -1,0 +1,9 @@
+*.pdf
+*.aux
+*.bbl
+*.log
+*.out
+*.blg
+*.png
+man/
+man/*
