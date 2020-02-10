@@ -1,13 +1,13 @@
 all: clean doc display
 
 clean:
-	$(RM) CBSM-IoT.aux CBSM-IoT.log CBSM-IoT.out CBSM-IoT.pdf
+	$(RM) CBSTM-IoT.aux CBSTM-IoT.log CBSTM-IoT.out CBSTM-IoT.pdf
 
 doc:
-	pdflatex CBSM-IoT.tex; \
-	bibtex CBSM-IoT; \
-	pdflatex CBSM-IoT.tex; \
-	pdflatex CBSM-IoT.tex; \
+	pdflatex CBSTM-IoT.tex; \
+	bibtex CBSTM-IoT; \
+	pdflatex CBSTM-IoT.tex; \
+	pdflatex CBSTM-IoT.tex; \
 
 display:
-	zathura CBSM-IoT.pdf
+	zathura CBSTM-IoT.pdf

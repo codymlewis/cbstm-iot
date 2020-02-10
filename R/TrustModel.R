@@ -185,8 +185,8 @@ Node <- R6::R6Class(
                 nodes[[k]]$get_rec(
                     i,
                     self$id,
-                    context,
-                    `if`(context == self$attack_context, 0, self$DT[i, context])
+                    `if`(self$attack_context > 0, self$attack_context, context),
+                    `if`(self$attack_context > 0, 0, self$DT[i, context])
                 )
             }
             invisible(self)
