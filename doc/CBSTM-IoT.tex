@@ -26,14 +26,14 @@
     show the effects of the attack while still below the Byzantine threshold
     \cite{lamport2019byzantine}. Friendships between nodes was determined
     randomly such that the average amount of friends that each node had was
-    appoximately 50, then $frlow$ and $frhigh$ were calculated as a standard
+    approximately 50, then $frlow$ and $frhigh$ were calculated as a standard
     deviation below and above that mean respectively.
 
     We defined the relationship factor with the following function,
     \begin{equation}
         R = \frac{1}{2^n}
     \end{equation}
-    where $n$ is the degree of seperation between nodes $i$ and $k$. Where
+    where $n$ is the degree of separation between nodes $i$ and $k$. Where
     nodes belonging to the same owner have $0$ degrees of separation, and
     those belonging to different owners have $1$ degree of separation.
     Owners have at most 7 nodes belonging to them.
@@ -57,7 +57,15 @@
         \beta = 1 - \alpha
     \end{equation}
 
-    The effects of this can be seen Figure \ref{fig:trust_plot}, where after appoximately 20
+    where the trust of node $j$ calculated by node $i$ under context $c$ is,
+    \begin{equation}
+        T_{i,j}^c = \alpha \cdot DT_{i,j} + \beta \cdot IndT_{i,j}^c,
+    \end{equation}
+    such that $DT$ is the aggregation of direct trusts for all contexts, and
+    $IndT$ is the aggregation of indirect trusts under context $c$ for recommendations
+    from each other node.
+
+    The effects of this can be seen Figure \ref{fig:trust_plot}, where after approximately 20
     transactions, the trust jumps from using a combination of direct and indirect to
     only using direct.
 
@@ -104,7 +112,7 @@
 
     \section{Results}
     This trust model was resistant to the context attacks, due to the split of direct and
-    indirect trusts, where direct trust is calculated as an agregation of
+    indirect trusts, where direct trust is calculated as an aggregation of
     experiences in all contexts. Another factor that allowed for the mitigation
     of context attacks was the filtration of recommendations based on context,
     where the contexts themselves do not have any other effect on resulting
