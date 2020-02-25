@@ -3,7 +3,7 @@
 library(CBSTMIoT)
 
 main <- function() {
-    run_sim(50)
+    run_sim(100)
     quit("no")
 }
 

@@ -17,9 +17,14 @@ Params <- R6::R6Class(
         num_adversaries = 0,
         num_contexts = 10,
         nodes_per_owner = 7,
+        target = 8,
+        observer = 1,
+        target_context = 3,
 
         initialize = function() {
-            self$num_adversaries <- floor(self$num_nodes / 3)
+            self$num_adversaries <- floor(
+                self$num_nodes / c(self$num_nodes + 1, 5, 2, 1.25, 1)
+            )
         },
 
         set_frvals = function(frlow, frhigh) {
@@ -57,21 +62,29 @@ Node <- R6::R6Class(
         set_vals = function() {
             self$DT <- matrix(
                 rep(rep(params$R, params$num_contexts), params$num_nodes),
-                ncol = params$num_contexts, 
+                ncol = params$num_contexts,
                 byrow = TRUE
             )
             self$Z <- matrix(
                 rep(rep(params$R, params$num_contexts), params$num_nodes),
-                ncol = params$num_contexts, 
+                ncol = params$num_contexts,
                 byrow = TRUE
             )
             self$Tr <-  matrix(
                 rep(rep(0, params$num_contexts), params$num_nodes),
-                ncol = params$num_contexts, 
+                ncol = params$num_contexts,
                 byrow = TRUE
             )
             self$RT <- array(  # [i, k, c]
-                rep(rep(rep(params$R, params$num_contexts), params$num_nodes), params$num_nodes),
+                rep(
+                    rep(
+                        rep(
+                            params$R, params$num_contexts
+                        ),
+                        params$num_nodes
+                    ),
+                    params$num_nodes
+                ),
                 dim = c(params$num_nodes, params$num_nodes, params$num_contexts)
             )
         },
@@ -106,11 +119,11 @@ Node <- R6::R6Class(
         },
 
         calc_DT = function(i) {
-            return(sum(self$DT[i,] * self$calc_WW(i)))
+            return(sum(self$DT[i, ] * self$calc_WW(i)))
         },
 
         calc_WW = function(i) {
-            norm_Tr <- self$Tr[i,] / sum(self$Tr[i,])
+            norm_Tr <- self$Tr[i, ] / sum(self$Tr[i, ])
             return(ifelse(is.nan(norm_Tr), 0, norm_Tr))
         },
 
@@ -119,7 +132,7 @@ Node <- R6::R6Class(
                 sum(
                     self$RT[i, self$other_node_ids, context] *
                     self$calc_X(i, context, nodes)
-                ) / 
+                ) /
                 length(self$RT[i, self$other_node_ids, context])
             )
         },
@@ -134,7 +147,9 @@ Node <- R6::R6Class(
         },
 
         calc_OT = function(nodes) {
-            return(params$wh * self$calc_H(nodes) + params$wd * self$calc_D(nodes))
+            return(
+                params$wh * self$calc_H(nodes) + params$wd * self$calc_D(nodes)
+            )
         },
 
         calc_H = function(nodes) {
@@ -154,7 +169,9 @@ Node <- R6::R6Class(
                 sapply(
                     self$other_node_ids,
                     function(i) {
-                        cf <- length(intersect(self$friends, nodes[[i]]$friends))
+                        cf <- length(
+                            intersect(self$friends, nodes[[i]]$friends)
+                        )
                         return(cf / (af_i + length(nodes[[i]]$friends) - cf))
                     }
                 )
@@ -166,27 +183,33 @@ Node <- R6::R6Class(
                 sapply(
                     self$other_node_ids,
                     function(i) {
-                        return(calc_R(`if`(nodes[[i]]$owner == self$owner, 0, 1)))
+                        return(
+                            calc_R(`if`(nodes[[i]]$owner == self$owner, 0, 1))
+                        )
                     }
                 )
             )
         },
 
-        transaction = function(nodes, i, context) {
-            self$Tr[i, context] <- self$Tr[i, context] + 1
+        transaction = function(nodes, context) {
+            self$Tr[params$target, context] <- self$Tr[params$target, context] + 1
             fb <- `if`(
-                nodes[[i]]$perform_transaction(context),
+                nodes[[params$target]]$perform_transaction(context),
                 runif(1, min = 1, max = 10),
                 runif(1, min = -10, max = 0)
             )
-            self$update_DT(i, context, fb)
-            for(k in self$other_node_ids) {
-                self$update_Z(i, k, context, fb)
+            self$update_DT(params$target, context, fb)
+            for (k in self$other_node_ids) {
+                self$update_Z(params$target, k, context, fb)
                 nodes[[k]]$get_rec(
-                    i,
+                    params$target,
                     self$id,
                     `if`(self$attack_context > 0, self$attack_context, context),
-                    `if`(self$attack_context > 0, 0, self$DT[i, context])
+                    `if`(
+                        self$attack_context > 0,
+                        0,
+                        self$DT[params$target, context]
+                    )
                 )
             }
             invisible(self)
@@ -277,23 +300,31 @@ assign_friends <- function(nodes) {
     params$set_frvals(round(fr_sd), round(mean(friend_counts) + fr_sd))
 }
 
-perform_transactions <- function(num_trans, nodes, main_id, server_id, context) {
+perform_transactions <- function(num_trans, nodes) {
     trust_vals <- NULL
-    cat_progress(0, num_trans, prefix = sprintf("Transaction %d/%d", 0, num_trans))
+    cat_progress(
+        0, num_trans, prefix = sprintf("Transaction %d/%d", 0, num_trans)
+    )
     for (i in seq_len(num_trans)) {
         for (node in nodes) {
-            for (other_node_id in setdiff(seq_len(params$num_nodes), node$id)) {
+            if (node$id != params$observer) {
                 node$transaction(
                     nodes,
-                    other_node_id,
                     round(runif(1, min = 1, max = params$num_contexts))
                 )
             }
         }
-        trust_vals <- c(trust_vals, nodes[[main_id]]$calc_T(server_id, context, nodes))
-        cat_progress(i, num_trans, prefix = sprintf("Transaction %d/%d", i, num_trans))
+        trust_vals <- c(
+            trust_vals,
+            nodes[[params$observer]]$calc_T(
+                params$target, params$target_context, nodes
+            )
+        )
+        cat_progress(
+            i, num_trans, prefix = sprintf("Transaction %d/%d", i, num_trans)
+        )
     }
-    return(trust_vals)
+    return(data.frame(trusts = trust_vals, transactions = seq_len(num_trans)))
 }
 
 
@@ -311,49 +342,77 @@ run_sim <- function(num_trans) {
         }
     )
     assign_friends(nodes)
-    main_id <- 1
-    server_id <- 8
-    context <- 3
-    nodes[[server_id]]$mutate_cp(10)
-    cat(sprintf("Performing %d transactions with no adversaries...\n", num_trans))
-    trust_vals <- perform_transactions(num_trans, nodes, main_id, server_id, context)
-    for (i in seq_len(params$num_adversaries)) {
-        nodes[[params$num_nodes - i]]$make_adversary(context)
+    nodes[[params$target]]$mutate_cp(10)
+    trust_vals <- list()
+    for (num_adv in params$num_adversaries) {
+        for (i in seq_len(num_adv)) {
+            nodes[[params$num_nodes + 1 - i]]$make_adversary(
+                params$target_context
+            )
+        }
+        for (node in nodes) {
+            node$set_vals()
+        }
+        cat(
+            sprintf(
+                "Performing %d transactions with %d%% adversaries...\n",
+                num_trans,
+                num_adv / params$num_nodes * 100
+            )
+        )
+        trust_vals[[sprintf("%d", num_adv)]] <- perform_transactions(
+            num_trans,
+            nodes
+        )
     }
-    for (node in nodes) {
-        node$set_vals()
-    }
-    cat(sprintf("Performing %d transactions with 30%% adversaries...\n", num_trans))
-    cs_trust_vals <- perform_transactions(num_trans, nodes, main_id, server_id, context)
-    create_plot(trust_vals, cs_trust_vals, main_id, server_id, context)
+    create_plot(trust_vals)
 }
 
 
-create_plot <- function(trust_vals, cs_trust_vals, main_id, server_id, context) {
-    num_trans <- length(trust_vals)
-    cs_data <- data.frame(T = cs_trust_vals, time = seq_len(num_trans))
-    cs_aes <- ggplot2::aes(x = time, y = T)
-    filename <- sprintf("%d-trust-eval-on-%d-in-context-%d.png", main_id, server_id, context)
+create_plot <- function(trust_vals) {
+    names(trust_vals) <- sprintf(
+        "%d%%%s",
+        params$num_adversaries / params$num_nodes * 100,
+        ifelse(
+            params$num_adversaries / params$num_nodes * 100 == 100,
+            " Adversaries",
+            ""
+        )
+    )
+    data <- reshape2::melt(trust_vals, id.vars = "transactions")
+    data$L1 <- factor(
+        data$L1,
+        levels = stringr::str_sort(levels(as.factor(data$L1)), numeric = TRUE)
+    )
+    filename <- sprintf(
+        "%d-trust-eval-on-%d-in-context-%d.png",
+        params$observer,
+        params$target,
+        params$target_context
+    )
+    colors <- c("blue", "red", "green", "orange", "purple")
+    shapes <- c(15, 17, 18, 19, 20)
     ggplot2::ggplot(
-        data = data.frame(T = trust_vals, time = seq_len(num_trans)),
-        ggplot2::aes(x = time, y = T)
+        data = data,
+        ggplot2::aes(
+            x = transactions,
+            y = value,
+            color = as.factor(L1),
+            shape = as.factor(L1)
+        )
     ) +
+        ggplot2::geom_line() +
+        ggplot2::geom_point() +
         ggplot2::labs(
             x = "Transactions",
             y = "Trust value",
-            colour = NULL
+            colour = NULL,
+            shape = NULL
         ) +
-        ggplot2::geom_line(color = "blue") +
-        ggplot2::geom_point(shape = 15, color = "blue", fill = "blue") +
-        ggplot2::scale_y_continuous(limits = c(-1.1, 1.1)) +
-        ggplot2::geom_line(color = "red", data = cs_data, cs_aes) +
-        ggplot2::geom_point(
-            shape = 17,
-            color = "red",
-            fill = "red",
-            data = cs_data,
-            ggplot2::aes(x = time, y = T)
-        )
+        ggplot2::scale_y_continuous(limits = c(-0.05, 1.05)) +
+        ggplot2::scale_color_manual(values = colors) +
+        ggplot2::scale_shape_manual(values = shapes) +
+        ggplot2::theme(legend.position = "bottom")
     ggplot2::ggsave(
         file = filename,
         width = 7,
